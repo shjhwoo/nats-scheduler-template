@@ -1,0 +1,193 @@
+# 🚀 Zero-Redis 예약 메세지 시스템 (Go 템플릿)
+
+> **[E-Book] Redis 없이 만드는 NATS 예약 메세지 시스템**의 공식 실무 템플릿 소스 코드입니다.
+> 이 리포지토리는 전자책 구매자분들에게만 독점 제공되는 Private Repository입니다.
+
+이 템플릿은 Redis나 무거운 DB Polling 스케줄러 없이, 오직 **NATS JetStream**만을 활용하여 이벤트 기반의 대용량 예약 메세지 시스템을 구축하는 Go 언어 기반의 보일러플레이트(Boilerplate)입니다.
+
+## ✨ 주요 기능
+
+전자책 3장에서 다룬 모든 핵심 패턴이 코드로 구현되어 있습니다.
+
+* **예약 메세지 발행 (Create):** `Nats-Schedule` 헤더를 활용한 미래 시각 메세지 예약
+* **예약 메세지 수정 (Update):** `MaxMsgsPerSubject`를 활용한 기존 예약 건 덮어쓰기
+* **예약 메세지 취소 (Delete):** Target Subject 변경(`discarded`)을 통한 안전한 발송 취소
+* **안전한 수신 (Consume):** `WorkQueue`, `Durable`, 명시적 `Ack` 처리가 적용된 멀티 인스턴스 대응 컨슈머
+* **[Bonus] 부하 테스트 툴:** 초당 수백 건의 예약 및 덮어쓰기 스트레스를 검증할 수 있는 로드 테스트 스크립트 내장
+
+## 📂 디렉토리 구조
+
+```text
+├── loadTest/
+│   └── cmd/
+│       └── main.go # 부하 테스트 실행 진입점
+│
+├── template/
+│        ├── apiServer/
+│        │   └── apiServer.go # 예약 메세지 발행을 돕는 HTTP 엔드포인트 제공 (웹소켓 서버 등으로 수정 가능)
+│        ├── cmd/
+│        │   └── main.go # 템플릿 서버 실행 진입점
+│        ├── internal/
+│        │   ├── config/
+│        │   │   └── config.go # 환경 변수 로드 및 설정
+│        │   └── natsutil/
+│        │       ├── client.go # NATS 연결, 제트스트림, 컨슈머 생성 함수 제공
+│        │       ├── consumer.go # 제트스트림에서 수신된 메세지를 처리하는 함수 제공
+│        │       └── publisher.go # API 서버를 위한 헬퍼 함수 제공
+│        ├── .env
+│        ├── go.mod
+│        └── go.sum
+│
+├── LICENSE.md
+└── README.md
+
+```
+
+## 🛠 NATS 지연 스케줄링 시스템 이해를 위한 간단한 실습 (Hands-on)
+
+### 1. NATS 서버 실행
+
+NATS 서버 v2.12.2 이상이 필요합니다. Docker를 활용해 실행할 수 있습니다:
+
+```bash
+docker run -p 4222:4222 -p 8222:8222 -ti nats:latest -js
+
+```
+
+### 2. 템플릿 서비스 실행
+
+```bash
+cd ./template
+
+go run ./cmd
+
+```
+
+### 3. 10초 뒤 발송되는 예약 메세지 생성 및 수신
+
+```bash
+curl --location 'http://localhost:8080/scheduledMsg' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "id": "schId1",
+    "content": "hello world",
+    "scheduledAt": "'$(date -u -d "+10 seconds" +"%Y-%m-%dT%H:%M:%SZ")'"
+}'
+
+[curl 응답]
+{"message":"Scheduled message created/updated successfully","pubAck":{"stream":"SCHEDULER_STREAM","seq":1}}
+
+[서버 로그]
+2026/02/21 13:21:46 scheduled message created/updated successfully, message id:  schId1  scheduled at:  2026-02-21T13:21:56+09:00
+[GIN] 2026/02/21 - 13:21:46 | 200 |      3.5691ms |       127.0.0.1 | POST     "/scheduledMsg"
+2026/02/21 13:21:56 received message at scheduled time, subject: scheduler.process.schId1, headers: map[Nats-Schedule-Next:[purge] Nats-Scheduler:[scheduler.pending.schId1] Nats-TTL:[180s]], receivedAt: 2026-02-21T13:21:56+09:00, payload: hello world
+
+```
+
+### 4. 스케줄러 스트림 내의 예약 메세지 수정 (새로운 발송 시각 및 내용)
+
+```bash
+curl --location 'http://localhost:8080/scheduledMsg' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "id": "schId1",
+    "content": "hello world",
+    "scheduledAt": "'$(date -u -d "+10 seconds" +"%Y-%m-%dT%H:%M:%SZ")'"
+}'
+
+curl --location --request PATCH 'http://localhost:8080/scheduledMsg' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "id": "schId1",
+    "content": "hello world updated",
+    "scheduledAt": "'$(date -u -d "+20 seconds" +"%Y-%m-%dT%H:%M:%SZ")'"
+}'
+
+[curl 응답]
+{"message":"Scheduled message created/updated successfully","pubAck":{"stream":"SCHEDULER_STREAM","seq":1}}
+{"message":"Scheduled message created/updated successfully","pubAck":{"stream":"SCHEDULER_STREAM","seq":2}}
+
+[서버 로그]
+2026/02/21 13:22:57 scheduled message created/updated successfully, message id:  schId1  scheduled at:  2026-02-21T13:23:07+09:00
+[GIN] 2026/02/21 - 13:22:57 | 200 |      1.3333ms |       127.0.0.1 | POST     "/scheduledMsg"
+2026/02/21 13:23:03 scheduled message created/updated successfully, message id:  schId1  scheduled at:  2026-02-21T13:23:23+09:00
+[GIN] 2026/02/21 - 13:23:03 | 200 |      1.5236ms |       127.0.0.1 | PATCH    "/scheduledMsg"
+2026/02/21 13:23:23 received message at scheduled time, subject: scheduler.process.schId1, headers: map[Nats-Schedule-Next:[purge] Nats-Scheduler:[scheduler.pending.schId1] Nats-TTL:[180s]], receivedAt: 2026-02-21T13:23:23+09:00, payload: hello world updated
+
+```
+
+### 5. 발송 전 스케줄러 스트림에서 예약 메세지 삭제 (취소)
+
+```bash
+curl --location 'http://localhost:8080/scheduledMsg' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "id": "schId1",
+    "content": "hello world",
+    "scheduledAt": "'$(date -u -d "+10 seconds" +"%Y-%m-%dT%H:%M:%SZ")'"
+}'
+
+curl --location --request DELETE 'http://localhost:8080/scheduledMsg' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "id": "schId1"
+}'
+
+[curl 응답]
+{"message":"Scheduled message created/updated successfully","pubAck":{"stream":"SCHEDULER_STREAM","seq":1}}
+{"message":"Scheduled message deleted successfully","pubAck":{"stream":"SCHEDULER_STREAM","seq":2}}
+
+[서버 로그]
+2026/02/21 13:27:04 scheduled message created/updated successfully, message id:  schId1  scheduled at:  2026-02-21T13:27:14+09:00
+[GIN] 2026/02/21 - 13:27:04 | 200 |      1.3484ms |       127.0.0.1 | POST     "/scheduledMsg"
+2026/02/21 13:27:05 scheduled message deleted successfully, message id:  schId1
+[GIN] 2026/02/21 - 13:27:05 | 200 |       1.335ms |       127.0.0.1 | DELETE   "/scheduledMsg"
+
+```
+
+---
+
+## 🚀 부하 테스트 가이드 (Load Test)
+
+이 템플릿에는 시스템의 한계를 직접 검증해 볼 수 있는 부하 테스트 스크립트가 포함되어 있습니다.
+단순한 발송을 넘어, **각 메세지당 여러 번의 덮어쓰기(수정) 요청**이 쏟아지는 극단적인 스트레스 환경을 시뮬레이션합니다.
+
+### 1. 실행 방법
+
+`loadtest/main.go` 파일을 통해 테스트를 실행하고 (필요 시 경로 수정), `loadtest/loadResult.log` 파일에서 NATS CPU 및 메모리 사용량을 확인하세요.
+
+```bash
+docker run -p 4222:4222 -p 8222:8222 -ti nats:latest -js -m 8222
+
+cd ./loadtest
+
+# 사용법: ./start.sh {총_메세지수} {수정_횟수} {예약_간격(분)} {발송량}
+# 예시: 2000개의 메세지를 각각 10번씩 수정하고, 1분마다 100개씩 발송
+./start.sh 2000 10 1 100
+
+```
+
+### 2. 모니터링 로그
+
+테스트가 실행되는 동안 30초 간격으로 리소스를 기록하는 로그 파일이 생성됩니다:
+
+* `loadResult.log`: 스케줄러 JetStream에 걸리는 부하 기록
+
+### 3. 📊 실제 성능 검증 결과
+
+* **OS:** Windows 11
+* **NATS:** (Docker 컨테이너) 단일 노드, 3 컨슈머
+* **총 메세지 수:** 2000
+* **메세지당 수정 횟수:** 10회
+* **메세지 예약 시각 간격:** 60초
+
+각 메세지당 10번의 덮어쓰기(수정)가 발생하는 가혹 조건 하에서의 테스트 결과입니다. NATS는 1% 미만의 극강의 효율로 예약 메세지를 완벽하게 방어했습니다.
+
+| 1분당 발송량 | 평균 지연 시간 (Avg Latency) | 최대 지연 시간 (Max Latency) | NATS CPU | NATS 메모리 |
+| --- | --- | --- | --- | --- |
+| **500건** | -412.88 ms | 174.126 ms | 0.22% | 34.21 MB |
+| **1000건** | -321.84 ms | 345.929 ms | 0.33% | 34.08 MB |
+| **2000건** | 423.67 ms | 1.6536 s | 0.25% | 30.0 MB |
+
+> **🔥 극한 스트레스 테스트 (분당 20,000건 발송):**
+> 초당 수백 건이 쏟아지는 극한의 상황에서도 시스템은 Crash(다운) 없이 100% 순차 처리되었습니다. NATS 리소스는 CPU 17.13%, 메모리 43.48MB만을 사용했으며, 평균 지연 시간은 약 471ms(최대 2.11초)였습니다.
