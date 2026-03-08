@@ -18,7 +18,7 @@ All core patterns covered in Chapter 3 of the ebook are implemented in code.
 
 ```
 ├── apiServer/
-│   └── apiServer.go # provides http endpoint that helps publish scheduledMsg (you can modify this as a websocket server)
+│   └── apiServer.go # this provides REST API that helps publish scheduledMsg (you can modify this as a websocket server)
 ├── cmd/
 │   └── main.go # starting point
 ├── internal/

@@ -23,9 +23,9 @@ type NatsClient struct {
 
 var StreamName = "SCHEDULER_STREAM"
 var SchedulerConsumerDurableName = "SCHEDULER_CONSUMER"
-var ScheduledMsgPendingSubjectPrefix = "scheduler.pending"
-var ScheduledMsgProcessSubjectPrefix = "scheduler.process"
-var ScheduledMsgDiscardSubject = "scheduler.discarded"
+var SchedulerPending = "scheduler.pending"
+var SchedulerPublished = "scheduler.published"
+var SchedulerDiscarded = "scheduler.discarded"
 
 func NewNatsClient() error {
 
@@ -75,9 +75,9 @@ func (nc *NatsClient) CreateSchedulerStream() error {
 		Name:    StreamName,
 		Storage: jetstream.FileStorage,
 		Subjects: []string{
-			fmt.Sprintf("%s.*", ScheduledMsgPendingSubjectPrefix),
-			fmt.Sprintf("%s.*", ScheduledMsgProcessSubjectPrefix),
-			ScheduledMsgDiscardSubject,
+			fmt.Sprintf("%s.*", SchedulerPending),
+			fmt.Sprintf("%s.*", SchedulerPublished),
+			SchedulerDiscarded,
 		},
 		AllowMsgSchedules: true,
 		AllowMsgTTL:       true,
@@ -101,7 +101,7 @@ func (nc *NatsClient) CreateSchedulerConsumer() error {
 	consumer, err := nc.SchedulerStream.CreateConsumer(context.Background(), jetstream.ConsumerConfig{
 		Durable:        SchedulerConsumerDurableName,
 		AckPolicy:      jetstream.AckExplicitPolicy,
-		FilterSubjects: []string{fmt.Sprintf("%s.*", ScheduledMsgProcessSubjectPrefix)},
+		FilterSubjects: []string{fmt.Sprintf("%s.*", SchedulerPublished)},
 	})
 	if err != nil {
 		return err

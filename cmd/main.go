@@ -21,7 +21,7 @@ func main() {
 	}
 
 	apiserver.SetupPublisherAPIServer()
-	if err := apiserver.PublisherAPIServer.Run(":8080"); err != nil {
+	if err := apiserver.APIServer.Run(":8080"); err != nil {
 		log.Println("failed to run publisher API server: ", err)
 		return
 	}

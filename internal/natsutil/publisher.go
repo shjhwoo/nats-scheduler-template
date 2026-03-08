@@ -29,9 +29,9 @@ func CreateOrUpdateScheduledMessage(scheduledMessage ScheduledMessage) (*jetstre
 			Header: nats.Header{
 				"Nats-Schedule":        []string{fmt.Sprintf("@at %s", scheduledMessage.ScheduledAt.Format(time.RFC3339))},
 				"Nats-Schedule-TTL":    []string{fmt.Sprintf("%ds", processMsgTTL)},
-				"Nats-Schedule-Target": []string{fmt.Sprintf("%s.%s", ScheduledMsgProcessSubjectPrefix, scheduledMessage.Id)}, // Target subject
+				"Nats-Schedule-Target": []string{fmt.Sprintf("%s.%s", SchedulerPublished, scheduledMessage.Id)}, // Target subject
 			},
-			Subject: fmt.Sprintf("%s.%s", ScheduledMsgPendingSubjectPrefix, scheduledMessage.Id),
+			Subject: fmt.Sprintf("%s.%s", SchedulerPending, scheduledMessage.Id),
 			Data:    []byte(scheduledMessage.Content),
 		})
 	if err != nil {
@@ -54,9 +54,9 @@ func DeleteScheduledMessage(scheduledMessage ScheduledMessage) (*jetstream.PubAc
 			Header: nats.Header{
 				"Nats-Schedule":        []string{fmt.Sprintf("@at %s", time.Now().Format(time.RFC3339))}, // this is also required for the message to be deleted from the pending subject. if this is not set, the message will not be deleted and will be processed at the scheduled time.
 				"Nats-Schedule-TTL":    []string{fmt.Sprintf("%ds", processMsgTTL)},
-				"Nats-Schedule-Target": []string{ScheduledMsgDiscardSubject}, // Target subject
+				"Nats-Schedule-Target": []string{SchedulerDiscarded}, // Target subject
 			},
-			Subject: fmt.Sprintf("%s.%s", ScheduledMsgPendingSubjectPrefix, scheduledMessage.Id),
+			Subject: fmt.Sprintf("%s.%s", SchedulerPending, scheduledMessage.Id),
 			Data:    nil,
 		})
 	if err != nil {

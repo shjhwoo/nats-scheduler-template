@@ -6,13 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var PublisherAPIServer *gin.Engine
+var APIServer *gin.Engine
 
 func SetupPublisherAPIServer() {
-	PublisherAPIServer = gin.Default()
-	PublisherAPIServer.POST("/scheduledMsg", HandleCreateOrUpdateScheduledMessage)
-	PublisherAPIServer.PATCH("/scheduledMsg", HandleCreateOrUpdateScheduledMessage)
-	PublisherAPIServer.DELETE("/scheduledMsg", HandleDeleteScheduledMessage)
+	APIServer = gin.Default()
+	APIServer.POST("/scheduledMsg", HandleCreateOrUpdateScheduledMessage)
+	APIServer.PATCH("/scheduledMsg", HandleCreateOrUpdateScheduledMessage)
+	APIServer.DELETE("/scheduledMsg", HandleDeleteScheduledMessage)
 }
 
 func HandleCreateOrUpdateScheduledMessage(c *gin.Context) {
