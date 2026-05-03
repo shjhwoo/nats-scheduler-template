@@ -3,7 +3,7 @@
 > 이 저장소는 **[E-Book] Redis 없이 NATS 예약 메시지 시스템 구축하기**의 공식 실전 템플릿 소스 코드입니다.
 > 이 저장소는 e-book 구매자에게만 제공되는 비공개 저장소입니다.
 > 
-> 👉 **상세 설명 및 구매:** [인프런 클립 링크]
+> 👉 **상세 설명 및 구매:** [[인프런 클립 링크](https://www.inflearn.com/clip/1024/nats%EB%A1%9C-redis-%EC%97%86%EC%9D%B4-%EC%98%88%EC%95%BD-%EB%A9%94%EC%8B%9C%EC%A7%80-%EC%8B%9C%EC%8A%A4%ED%85%9C-%EA%B5%AC%ED%98%84%ED%95%98%EA%B8%B0-go-%ED%85%9C%ED%94%8C%EB%A6%BF-%EC%BD%94%EB%93%9C-%EC%A0%9C%EA%B3%B5)]
 
 이 템플릿은 Redis나 무거운 DB 폴링 스케줄러 없이, **NATS JetStream**만으로 이벤트 기반 대용량 예약 메시지 시스템을 구축하기 위한 Go 보일러플레이트입니다.
 
